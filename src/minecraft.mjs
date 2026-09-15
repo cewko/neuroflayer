@@ -1,28 +1,44 @@
-export function connectMinecraft({ options, createBot, log, onEnd }) {
-  let state = "connecting";
+import { validateMessage } from "./messages.mjs";
 
+export function connectMinecraft({
+  options,
+  createBot,
+  log,
+  onEnd,
+  onMessage = () => {},
+  onStateChange = () => {},
+}) {
+  let state = "connecting";
   const bot = createBot({
     ...options,
     onMsaCode: (data) => log(data.message),
   });
 
-  const active = () => !["closing", "disconected"].includes(state);
+  const active = () => !["closing", "disconnected"].includes(state);
+
+  function changeState(next) {
+    if (state === next) return;
+
+    state = next;
+    onStateChange(state, bot.username);
+  }
 
   bot.on("spawn", () => {
     if (!active()) return;
-    state = "ready";
+    changeState("ready");
     log("spawned as " + bot.username);
   });
 
   bot.on("respawn", () => {
-    if (active()) state = "spawning";
+    if (active()) changeState("spawning");
   });
 
-  bot.on("messagestr", (text, position) => {
-    if (position !== "game_info") log(text);
+  bot.on("death", () => {
+    if (active()) changeState("dead");
   });
 
   bot.on("kicked", (reason) => {
+    if (active()) changeState("closing");
     log("kicked: " + JSON.stringify(reason));
   });
 
@@ -32,35 +48,48 @@ export function connectMinecraft({ options, createBot, log, onEnd }) {
   });
 
   bot.once("end", (reason) => {
-    state = "disconnected";
+    changeState("disconnected");
     log("disconnected: " + reason);
     onEnd(0);
   });
 
+  bot.on("chat", (username, message) => {
+    if (state !== "ready") return;
+    if (username.toLowerCase() === bot.username.toLowerCase()) return;
+
+    onMessage({ username, message });
+  });
+
+  bot.on("messagestr", (text, position) => {
+    if (position !== "game_info") log(text);
+  });
+
+  function send(text) {
+    if (state !== "ready") throw new Error("bot is not ready");
+    validateMessage(text);
+    bot.chat(text);
+  }
+
   return {
     status: () => ({ state, username: bot.username }),
+    send,
 
-    send(text) {
-      if (state !== "ready") throw new Error("bot is not ready");
-
-      if (
-        !text ||
-        text.length > 256 ||
-        !text.isWellFormed() ||
-        /[\p{Cc}\p{Cf}\u00a7]/u.test(text)
-      ) {
-        throw new Error(
-          "message cannot be longer than 256 characters, use plaintext",
-        );
+    sendChat(text) {
+      if (typeof text !== "string" || text.trimStart().startsWith("/")) {
+        throw new Error("AI replies must be regular messages (non commands)");
       }
+      send(text);
+    },
 
-      bot.chat(text);
+    respawn() {
+      if (state !== "dead") throw new Error("bot is not dead");
+      bot.respawn();
     },
 
     quit() {
       if (!active()) return;
-      state = "closing";
-      bot.quit?.("operator quit");
+      changeState("closing");
+      bot.quit("operator quit");
     },
   };
 }

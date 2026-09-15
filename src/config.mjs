@@ -53,3 +53,14 @@ export function loadLlmConfig(env = process.env) {
     temperature,
   };
 }
+
+function seconds(env, name, fallback) {
+  return integer(env, name, fallback, 1, 2_147_483) * 1000;
+}
+
+export function loadQueueConfig(env = process.env) {
+  return {
+    maxPending: integer(env, "MAX_PENDING_MESSAGES", 8),
+    queueTtlMs: seconds(env, "QUEUE_TTL_SECONDS", 120),
+  };
+}
