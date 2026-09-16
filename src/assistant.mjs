@@ -4,22 +4,36 @@ function mentionsAI(message, nickname) {
   return words.includes(nickname.toLowerCase());
 }
 
-export function createMentionAssistant({ llm, queue, state, send, log }) {
+export function createAssistant({ llm, queue, memory, state, send, log }) {
   return {
     handle({ username, message }) {
       const current = state();
 
-      if (current.state !== "ready" || !mentionsAI(message, current.username)) {
-        return;
-      }
+      if (current.state !== "ready") return;
+
+      const history = memory.read();
+
+      memory.add({
+        speaker: username,
+        kind: "player",
+        message,
+      });
+
+      if (!mentionsAI(message, current.username)) return;
 
       void queue
         .run(async (signal) => {
-          if (state().state !== "ready") {
+          const current = state();
+          if (current.state !== "ready") {
             throw new Error("bot is not ready");
           }
 
-          const reply = await llm.reply(message, { username, signal });
+          const reply = await llm.reply(message, {
+            username,
+            botName: current.username,
+            history,
+            signal,
+          });
 
           signal.throwIfAborted();
           return send(reply);
@@ -28,5 +42,18 @@ export function createMentionAssistant({ llm, queue, state, send, log }) {
           log(`AI for ${username}: ${error.message}`);
         });
     },
+
+    recordSent({ username, message }) {
+      memory.add({
+        speaker: username,
+        kind: "you",
+        message,
+      });
+    },
+
+    status: () => ({
+      ...queue.status(),
+      historyMessages: memory.read().length,
+    }),
   };
 }

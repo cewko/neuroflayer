@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { MAX_MESSAGE_LENGTH } from "./messages.mjs";
 
 const allowed = String.raw`A-Za-z0-9 .,!?;:'"()\x2D`;
-export const REPLY_GRAMMAR = `root ::= [A-Za-z0-9] [${allowed}]{0,${MAX_MESSAGE_LENGTH - 2}} [.!?]\n`;
+export const REPLY_GRAMMAR = `root ::= [A-Za-z0-9] [${allowed}]{0,${MAX_MESSAGE_LENGTH - 1}}\n`;
 const forbidden = new RegExp(`[^${allowed}]`, "u");
 
 export function loadReplyInstructions(path) {
@@ -17,23 +17,40 @@ export function validReply(reply) {
     reply.length >= 2 &&
     reply.length <= MAX_MESSAGE_LENGTH &&
     !forbidden.test(reply) &&
-    /^[A-Za-z0-9]/.test(reply) &&
-    /[.!?]$/.test(reply)
+    /^[A-Za-z0-9]/.test(reply)
   );
 }
 
-export function buildMessages({ instructions, question, username }) {
+export function buildMessages({
+  instructions,
+  question,
+  username,
+  botName,
+  history = [],
+}) {
+  const transcript = history
+    .map(({ speaker, kind, message }) => `${kind} ${speaker}: ${message}`)
+    .join("\n");
+
   const context = [
-    instructions,
-    username ? `You are replying to player ${username}.` : "",
+    botName && `your name is "${botName}".`,
+    username && `you are speaking with "${username}".`,
+    transcript && `recent public conversation:\n${transcript}`,
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
+
+  const selectedMessage = username
+    ? `${username}: ${question.trim()}`
+    : question.trim();
 
   return [
     {
       role: "user",
-      content: context + "\n\nQuestion: " + question.trim(),
+      content: `${instructions}
+      ${context}
+      respond to this message using the conversation above as context:
+      ${selectedMessage}`.trim(),
     },
   ];
 }

@@ -10,7 +10,7 @@ export function createLlmClient({
   fetchFn = fetch,
 }) {
   return {
-    async reply(question, { username, signal } = {}) {
+    async reply(question, { username, botName, history = [], signal } = {}) {
       if (typeof question !== "string" || !question.trim()) {
         throw new Error("question cannot be empty");
       }
@@ -32,6 +32,8 @@ export function createLlmClient({
             instructions,
             question,
             username,
+            botName,
+            history,
           }),
           grammar: REPLY_GRAMMAR,
           temperature,

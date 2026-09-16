@@ -7,6 +7,7 @@ export function connectMinecraft({
   onEnd,
   onMessage = () => {},
   onStateChange = () => {},
+  onSent = () => {},
 }) {
   let state = "connecting";
   const bot = createBot({
@@ -20,7 +21,7 @@ export function connectMinecraft({
     if (state === next) return;
 
     state = next;
-    onStateChange(state, bot.username);
+    onStateChange(state);
   }
 
   bot.on("spawn", () => {
@@ -68,6 +69,10 @@ export function connectMinecraft({
     if (state !== "ready") throw new Error("bot is not ready");
     validateMessage(text);
     bot.chat(text);
+
+    if (!text.trimStart().startsWith("/")) {
+      onSent({ username: bot.username, message: text });
+    }
   }
 
   return {

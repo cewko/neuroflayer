@@ -1,7 +1,13 @@
 import mineflayer from "mineflayer";
-import { loadConfig, loadLlmConfig, loadQueueConfig } from "./config.mjs";
+import {
+  loadConfig,
+  loadLlmConfig,
+  loadQueueConfig,
+  loadMemoryConfig,
+} from "./config.mjs";
 import { createLlmClient } from "./llm.mjs";
-import { createMentionAssistant } from "./assistant.mjs";
+import { createAssistant } from "./assistant.mjs";
+import { createConversationMemory } from "./memory.mjs";
 import { connectMinecraft } from "./minecraft.mjs";
 import { openTerminal } from "./terminal.mjs";
 import { createTaskQueue } from "./queue.mjs";
@@ -13,6 +19,8 @@ let llm;
 let llmConfig;
 let queue;
 let client;
+let assistant;
+let memory;
 let stopping = false;
 
 const terminal = openTerminal({
@@ -24,7 +32,10 @@ const terminal = openTerminal({
 const commands = new Map([
   [
     ":help",
-    () => terminal.log(":help | :ask <question> | :status | :respawn | :quit"),
+    () =>
+      terminal.log(
+        ":help | :ask <question> | :status | :respawn | :quit | :forget",
+      ),
   ],
   [
     ":status",
@@ -32,7 +43,7 @@ const commands = new Map([
       terminal.log(
         JSON.stringify({
           ...client.status(),
-          ai: queue.status(),
+          ai: assistant.status(),
         }),
       ),
   ],
@@ -54,6 +65,14 @@ const commands = new Map([
       }
     },
   ],
+  [
+    ":forget",
+    () => {
+      queue.cancelPending();
+      memory.clear();
+      terminal.log("history cleared");
+    },
+  ],
 ]);
 
 function handleLine(line) {
@@ -73,6 +92,7 @@ function shutdown(code = 0) {
   stopping = true;
   process.exitCode = code;
   queue?.stop();
+  memory?.clear();
   try {
     client?.quit();
   } finally {
@@ -93,10 +113,11 @@ try {
   });
 
   queue = createTaskQueue(loadQueueConfig());
-
-  const assistant = createMentionAssistant({
+  memory = createConversationMemory(loadMemoryConfig());
+  assistant = createAssistant({
     llm,
     queue,
+    memory,
     state: () => client?.status() ?? { state: "connecting" },
     send: (text) => client.sendChat(text),
     log: terminal.log,
@@ -108,6 +129,7 @@ try {
     log: terminal.log,
     onEnd: shutdown,
     onMessage: assistant.handle,
+    onSent: assistant.recordSent,
     onStateChange: (state) => {
       if (state !== "ready") queue.cancelPending();
     },

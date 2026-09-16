@@ -64,3 +64,10 @@ export function loadQueueConfig(env = process.env) {
     queueTtlMs: seconds(env, "QUEUE_TTL_SECONDS", 120),
   };
 }
+
+export function loadMemoryConfig(env = process.env) {
+  return {
+    maxMessages: integer(env, "MEMORY_MAX_MESSAGES", 30),
+    ttlMs: seconds(env, "MEMORY_TTL_SECONDS", 600),
+  };
+}
