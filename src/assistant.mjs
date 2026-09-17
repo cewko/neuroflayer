@@ -33,10 +33,18 @@ export function createAssistant({
   log,
   nickname,
 }) {
+  let enabled = true;
   const stripMention = createMentionStripper(nickname);
 
+  function setEnabled(value) {
+    enabled = value;
+    if (!enabled) queue.cancelPending();
+  }
+
   return {
+    setEnabled,
     handle({ username, message }) {
+      if (!enabled) return;
       const current = state();
 
       if (current.state !== "ready") return;
@@ -83,6 +91,7 @@ export function createAssistant({
     },
 
     status: () => ({
+      enabled,
       ...queue.status(),
       historyMessages: memory.read().length,
     }),

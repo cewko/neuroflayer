@@ -34,7 +34,7 @@ const commands = new Map([
     ":help",
     () =>
       terminal.log(
-        ":help | :ask <question> | :status | :respawn | :quit | :forget",
+        ":help | :llm <on/off> | :ask <question> | :status | :respawn | :quit | :forget",
       ),
   ],
   [
@@ -71,6 +71,21 @@ const commands = new Map([
       queue.cancelPending();
       memory.clear();
       terminal.log("history cleared");
+    },
+  ],
+  [
+    ":llm",
+    (argument) => {
+      switch (argument.toLowerCase()) {
+        case "on":
+          assistant.setEnabled(true);
+          return terminal.log("llm replies enabled");
+        case "off":
+          assistant.setEnabled(false);
+          return terminal.log("llm replies disabled");
+        default:
+          throw new Error("usage: :llm on | :llm off | :llm status");
+      }
     },
   ],
 ]);
