@@ -121,6 +121,7 @@ try {
     state: () => client?.status() ?? { state: "connecting" },
     send: (text) => client.sendChat(text),
     log: terminal.log,
+    nickname: options.username,
   });
 
   client = connectMinecraft({

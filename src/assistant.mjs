@@ -1,10 +1,40 @@
-function mentionsAI(message, nickname) {
-  if (!nickname) return false;
-  const words = message.toLowerCase().match(/[a-z0-9_]+/g) ?? [];
-  return words.includes(nickname.toLowerCase());
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function createAssistant({ llm, queue, memory, state, send, log }) {
+function createMentionStripper(nickname) {
+  if (!nickname) return () => null;
+
+  const escapedNickname = escapeRegex(nickname);
+  const regex = new RegExp(
+    `(^|[^a-z0-9_])${escapedNickname}(?=$|[^a-z0-9_])`,
+    "gi",
+  );
+
+  return (message) => {
+    let mentioned = false;
+    regex.lastIndex = 0;
+
+    const stripped = String(message ?? "").replace(regex, (_, prefix) => {
+      mentioned = true;
+      return prefix;
+    });
+
+    return mentioned ? stripped.trim() : null;
+  };
+}
+
+export function createAssistant({
+  llm,
+  queue,
+  memory,
+  state,
+  send,
+  log,
+  nickname,
+}) {
+  const stripMention = createMentionStripper(nickname);
+
   return {
     handle({ username, message }) {
       const current = state();
@@ -19,7 +49,8 @@ export function createAssistant({ llm, queue, memory, state, send, log }) {
         message,
       });
 
-      if (!mentionsAI(message, current.username)) return;
+      const question = stripMention(message);
+      if (!question) return;
 
       void queue
         .run(async (signal) => {
@@ -28,7 +59,7 @@ export function createAssistant({ llm, queue, memory, state, send, log }) {
             throw new Error("bot is not ready");
           }
 
-          const reply = await llm.reply(message, {
+          const reply = await llm.reply(question, {
             username,
             botName: current.username,
             history,
