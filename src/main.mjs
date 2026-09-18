@@ -34,7 +34,8 @@ const commands = new Map([
     ":help",
     () =>
       terminal.log(
-        ":help | :llm <on/off> | :ask <question> | :status | :respawn | :quit | :forget",
+        ":help | :llm <on/off> | :memory <on/off> | :ask <question> | :status | " +
+          ":respawn | :quit | :forget",
       ),
   ],
   [
@@ -78,13 +79,28 @@ const commands = new Map([
     (argument) => {
       switch (argument.toLowerCase()) {
         case "on":
-          assistant.setEnabled(true);
-          return terminal.log("llm replies enabled");
+          assistant.setRepliesEnabled(true);
+          return terminal.log("llm replies: on");
         case "off":
-          assistant.setEnabled(false);
-          return terminal.log("llm replies disabled");
+          assistant.setRepliesEnabled(false);
+          return terminal.log("llm replies: off");
         default:
-          throw new Error("usage: :llm on | :llm off | :llm status");
+          throw new Error("usage: :llm <on/off>");
+      }
+    },
+  ],
+  [
+    ":memory",
+    (argument) => {
+      switch (argument.trim().toLowerCase()) {
+        case "on":
+          assistant.setMemoryEnabled(true);
+          return terminal.log("memory: on");
+        case "off":
+          assistant.setMemoryEnabled(false);
+          return terminal.log("memory: off. history cleared");
+        default:
+          throw new Error("usage: :memory <on/off>");
       }
     },
   ],

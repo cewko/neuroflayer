@@ -33,18 +33,33 @@ export function createAssistant({
   log,
   nickname,
 }) {
-  let enabled = true;
+  let repliesEnabled = true;
   const stripMention = createMentionStripper(nickname);
 
-  function setEnabled(value) {
-    enabled = value;
-    if (!enabled) queue.cancelPending();
+  function setRepliesEnabled(value) {
+    repliesEnabled = value;
+    if (!repliesEnabled) queue.cancelPending();
+  }
+
+  function setMemoryEnabled(value) {
+    memory.setEnabled(value);
+  }
+
+  function status() {
+    const memoryStatus = memory.status();
+
+    return {
+      repliesEnabled,
+      memory: memoryStatus,
+      ...queue.status(),
+      historyMessages: memoryStatus.messages,
+    };
   }
 
   return {
-    setEnabled,
+    setRepliesEnabled,
+    setMemoryEnabled,
     handle({ username, message }) {
-      if (!enabled) return;
       const current = state();
 
       if (current.state !== "ready") return;
@@ -56,6 +71,8 @@ export function createAssistant({
         kind: "player",
         message,
       });
+
+      if (!repliesEnabled) return;
 
       const question = stripMention(message);
       if (!question) return;
@@ -90,10 +107,6 @@ export function createAssistant({
       });
     },
 
-    status: () => ({
-      enabled,
-      ...queue.status(),
-      historyMessages: memory.read().length,
-    }),
+    status,
   };
 }
