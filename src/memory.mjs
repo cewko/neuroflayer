@@ -13,21 +13,16 @@ export function createConversationMemory({
     updatedAt = 0;
   }
 
-  function expire() {
-    if (now() - updatedAt >= ttlMs) clear();
-  }
-
-  function setEnabled(value) {
-    if (memoryEnabled === value) return;
-    memoryEnabled = value;
-    if (!memoryEnabled) clear();
+  function expire(time = now()) {
+    if (entries.length && time - updatedAt >= ttlMs) clear();
   }
 
   function add(entry) {
     if (!memoryEnabled) return;
-    expire();
+    const time = now();
+    expire(time);
     entries.push({ ...entry });
-    updatedAt = now();
+    updatedAt = time;
 
     if (entries.length > maxMessages) {
       entries.splice(0, entries.length - maxMessages);
@@ -40,10 +35,18 @@ export function createConversationMemory({
     return entries.map((entry) => ({ ...entry }));
   }
 
+  function setEnabled(value) {
+    if (memoryEnabled === value) return;
+    memoryEnabled = value;
+    if (!memoryEnabled) clear();
+  }
+
   function status() {
+    expire();
+
     return {
       enabled: memoryEnabled,
-      messages: read().length,
+      messages: entries.length,
     };
   }
 

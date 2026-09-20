@@ -1,4 +1,22 @@
-import { REPLY_GRAMMAR, validReply, buildMessages } from "./instructions.mjs";
+import { createReplyGrammar, buildMessages } from "./instructions.mjs";
+import { validReply } from "./messages.mjs";
+
+function parseReply(data) {
+  const choice = data?.choices?.[0];
+  if (choice?.finish_reason === "length") {
+    throw new Error("model reached the token limit. no reply sent");
+  }
+
+  const content = choice?.message?.content;
+  // const reply =
+  //   typeof content === "string" ? content.replace(/\s+/g, " ").trim() : null;
+
+  if (choice?.finish_reason !== "stop" || !validReply(content)) {
+    throw new Error("model returned an invalid or incomplete reply");
+  }
+
+  return content.toLowerCase();
+}
 
 export function createLlmClient({
   url,
@@ -7,19 +25,32 @@ export function createLlmClient({
   timeoutMs,
   maxTokens,
   temperature,
+  maxMessageLength,
   fetchFn = fetch,
 }) {
-  return {
-    async reply(question, { username, botName, history = [], signal } = {}) {
-      if (typeof question !== "string" || !question.trim()) {
-        throw new Error("question cannot be empty");
-      }
+  const grammar = createReplyGrammar(maxMessageLength);
 
-      const timeout = AbortSignal.timeout(timeoutMs);
-      const requestSignal = signal
-        ? AbortSignal.any([signal, timeout])
-        : timeout;
+  async function reply(
+    question,
+    { username, botName, history = [], signal } = {},
+  ) {
+    if (typeof question !== "string" || !question.trim()) {
+      throw new Error("question cannot be empty");
+    }
+    signal?.throwIfAborted();
 
+    const timeout = new AbortController();
+    const timer = setTimeout(() => {
+      timeout.abort(
+        new DOMException("model request timed out", "TimeoutError"),
+      );
+    }, timeoutMs);
+    timer.unref();
+    const requestSignal = signal
+      ? AbortSignal.any([signal, timeout.signal])
+      : timeout.signal;
+
+    try {
       requestSignal.throwIfAborted();
 
       const response = await fetchFn(url, {
@@ -35,7 +66,7 @@ export function createLlmClient({
             botName,
             history,
           }),
-          grammar: REPLY_GRAMMAR,
+          grammar,
           temperature,
           max_tokens: maxTokens,
           stream: false,
@@ -49,23 +80,10 @@ export function createLlmClient({
 
       const data = await response.json();
       requestSignal.throwIfAborted();
-
-      const choice = data?.choices?.[0];
-      let text = choice?.message?.content;
-
-      if (choice?.finish_reason === "length") {
-        throw new Error("model reached the token limit; no reply sent");
-      }
-
-      if (typeof text === "string") {
-        text = text.replace(/\s+/g, " ").trim();
-      }
-
-      if (choice?.finish_reason !== "stop" || !validReply(text)) {
-        throw new Error("model returned an invalid or incomplete reply");
-      }
-
-      return text.toLowerCase();
-    },
-  };
+      return parseReply(data);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return { reply };
 }

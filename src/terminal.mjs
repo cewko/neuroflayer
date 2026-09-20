@@ -1,10 +1,17 @@
 import readline from "node:readline";
-import { toConsoleLine } from "./messages.mjs";
+import { errorMessage, toConsoleLine } from "./messages.mjs";
 
-export function openTerminal({ onLine, onClose, nickname }) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+export function openTerminal({
+  onLine,
+  onClose,
+  nickname,
+  input = process.stdin,
+  output = process.stdout,
+  createInterface = readline.createInterface,
+}) {
+  const rl = createInterface({
+    input,
+    output,
     prompt: `${nickname}> `,
     historySize: 0,
     crlfDelay: Infinity,
@@ -12,34 +19,40 @@ export function openTerminal({ onLine, onClose, nickname }) {
   let closed = false;
 
   function prompt() {
-    if (!closed && process.stdin.isTTY) rl.prompt(true);
+    if (!closed && input.isTTY && output.isTTY) rl.prompt(true);
   }
 
   function log(value) {
-    const text = toConsoleLine(value);
-
-    if (!closed && process.stdout.isTTY) {
-      readline.clearLine(process.stdout, 0);
-      readline.cursorTo(process.stdout, 0);
+    if (closed) return;
+    if (output.isTTY) {
+      readline.clearLine(output, 0);
+      readline.cursorTo(output, 0);
     }
-    process.stdout.write(text + "\n");
+    output.write(toConsoleLine(value) + "\n");
     prompt();
   }
 
+  function close() {
+    if (closed) return;
+    closed = true;
+    rl.close();
+  }
+
   rl.on("line", async (line) => {
+    if (closed) return;
     prompt();
     try {
       await onLine(line.trim());
     } catch (error) {
-      if (!closed) log(error.message);
+      if (!closed && error?.name !== "AbortError") log(errorMessage(error));
     }
   });
-  rl.on("SIGINT", onClose);
+  rl.on("SIGINT", close);
   rl.on("close", () => {
     closed = true;
     onClose();
   });
 
   prompt();
-  return { log, close: () => rl.close() };
+  return { log, close };
 }

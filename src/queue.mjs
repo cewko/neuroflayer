@@ -29,43 +29,33 @@ export function createTaskQueue({ maxPending, queueTtlMs, now = Date.now }) {
     }
   }
 
-  function cancelPending() {
-    const error = new Error("request cancelled");
-    active?.abort(error);
+  function run(task) {
+    if (closed) return Promise.reject(new Error("queue is stopped"));
+    if (jobs.length >= maxPending)
+      return Promise.reject(new Error("request queue is full"));
 
-    for (const job of jobs.splice(0)) {
-      job.reject(error);
-    }
+    return new Promise((resolve, reject) => {
+      jobs.push({ task, resolve, reject, queuedAt: now() });
+      void drain();
+    });
+  }
+
+  function cancelPending() {
+    const error = new DOMException("request cancelled", "AbortError");
+    const pending = jobs.splice(0);
+    active?.abort(error);
+    for (const job of pending) job.reject(error);
+  }
+
+  function stop() {
+    closed = true;
+    cancelPending();
   }
 
   return {
-    run(task) {
-      return new Promise((resolve, reject) => {
-        if (closed) {
-          reject(new Error("queue is stopped"));
-          return;
-        }
-
-        if (jobs.length >= maxPending) {
-          reject(new Error("request queue is full"));
-          return;
-        }
-
-        jobs.push({ task, resolve, reject, queuedAt: now() });
-        void drain();
-      });
-    },
-
+    run,
     cancelPending,
-
-    stop() {
-      closed = true;
-      cancelPending();
-    },
-
-    status: () => ({
-      busy: active !== null,
-      queued: jobs.length,
-    }),
+    stop,
+    status: () => ({ busy: active !== null, queued: jobs.length }),
   };
 }
