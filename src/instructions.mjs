@@ -1,21 +1,17 @@
 import { readFileSync } from "node:fs";
-import { MAX_MESSAGE_LENGTH } from "./messages.mjs";
+
+export { validReply } from "./messages.mjs";
 
 const allowed = String.raw`A-Za-z0-9 .,!?;:'"()\x2D`;
-export const REPLY_GRAMMAR = `root ::= [A-Za-z0-9] [${allowed}]{1,${MAX_MESSAGE_LENGTH - 1}}\n`;
 
-export function loadReplyInstructions(path) {
-  const prompt = readFileSync(path, "utf8").trim();
-  if (!prompt) throw new Error("prompt cannot be empty");
-  return prompt;
+export function createReplyGrammar(maxMessageLength) {
+  return `root ::= [A-Za-z0-9] [${allowed}]{1,${maxMessageLength - 1}}\n`;
 }
 
-export function validReply(reply) {
-  return (
-    typeof reply === "string" &&
-    reply.length >= 2 &&
-    reply.length <= MAX_MESSAGE_LENGTH
-  );
+export function loadReplyInstructions(path) {
+  const instructions = readFileSync(path, "utf8").trim();
+  if (!instructions) throw new Error("prompt cannot be empty");
+  return instructions;
 }
 
 export function buildMessages({
