@@ -6,6 +6,7 @@ export function connectMinecraft({
   log,
   onEnd,
   maxMessageLength,
+  parserManager,
   onMessage = () => {},
   onStateChange = () => {},
   onSent = () => {},
@@ -51,6 +52,7 @@ export function connectMinecraft({
   });
 
   bot.on("error", (error) => {
+    if (active()) changeState("closing");
     log(`minecraft: ${errorMessage(error)}`);
     reportEnd(1);
   });
@@ -61,18 +63,37 @@ export function connectMinecraft({
     reportEnd(0);
   });
 
-  bot.on("chat", (username, message) => {
+  function receive({ username, message }) {
     if (state !== "ready") return;
     if (username.toLowerCase() === bot.username.toLowerCase()) return;
-
     onMessage({ username, message });
+  }
+
+  bot.on("chat", (username, message) => {
+    if (parserManager.enabled()) return;
+    receive({ username, message });
   });
 
-  if (logMessages) {
-    bot.on("messagestr", (text, position) => {
-      if (position !== "game_info") log(text);
-    });
-  }
+  bot.on("messagestr", (text, position, jsonMsg, sender, verified) => {
+    if (logMessages && position !== "game_info") log(text);
+    if (state !== "ready" || !parserManager.enabled()) return;
+    if (position == "game_info") return;
+
+    let parsed;
+    try {
+      parsed = parserManager.parse({
+        text,
+        position,
+        jsonMsg,
+        sender,
+        verified,
+      });
+    } catch (error) {
+      log(`parser ${parserManager.current()}: ${errorMessage(error)}`);
+      return;
+    }
+    if (parsed) receive(parsed);
+  });
 
   function send(text) {
     if (state !== "ready") throw new Error("bot is not ready");
@@ -104,7 +125,11 @@ export function connectMinecraft({
   }
 
   return {
-    status: () => ({ state, username: bot.username }),
+    status: () => ({
+      state,
+      username: bot.username,
+      parser: parserManager.current(),
+    }),
     send,
     sendMessage,
     respawn,

@@ -1,4 +1,6 @@
 import { createAssistant } from "./assistant.mjs";
+import { parsers } from "./parsers/index.mjs";
+import { createParserManager } from "./parserManager.mjs";
 import { createCommandHandler } from "./commands.mjs";
 import { createLlmClient } from "./llm.mjs";
 import { createConversationMemory } from "./memory.mjs";
@@ -17,6 +19,7 @@ export function startApplication({
 }) {
   const queue = createTaskQueue(config.queue);
   const memory = createConversationMemory(config.memory);
+  const parserManager = createParserManager({ parsers });
   const llm = createLlmClient({
     ...config.llm,
     instructions,
@@ -67,7 +70,7 @@ export function startApplication({
       llm,
       queue,
       memory,
-      state: () => client?.status() ?? { state: "connecting " },
+      state: () => client?.status() ?? { state: "connecting" },
       send: (text) => client.sendMessage(text),
       log: terminal.log,
       nickname: config.minecraft.username,
@@ -75,6 +78,7 @@ export function startApplication({
 
     client = connectMinecraft({
       options: config.minecraft,
+      parserManager,
       createBot,
       log: terminal.log,
       logMessages: config.logMessages,
@@ -89,6 +93,7 @@ export function startApplication({
 
     handleLine = createCommandHandler({
       client,
+      parserManager,
       assistant,
       queue,
       llm,

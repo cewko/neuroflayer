@@ -1,21 +1,22 @@
 import { createReplyGrammar, buildMessages } from "./instructions.mjs";
 import { validReply } from "./messages.mjs";
 
-function parseReply(data) {
+function parseReply(data, maxMessageLength) {
   const choice = data?.choices?.[0];
   if (choice?.finish_reason === "length") {
     throw new Error("model reached the token limit. no reply sent");
   }
 
-  const content = choice?.message?.content;
-  // const reply =
-  //   typeof content === "string" ? content.replace(/\s+/g, " ").trim() : null;
+  const reply = choice?.message?.content;
 
-  if (choice?.finish_reason !== "stop" || !validReply(content)) {
+  if (
+    choice?.finish_reason !== "stop" ||
+    !validReply(reply, maxMessageLength)
+  ) {
     throw new Error("model returned an invalid or incomplete reply");
   }
 
-  return content.toLowerCase();
+  return reply.toLowerCase();
 }
 
 export function createLlmClient({
@@ -80,7 +81,7 @@ export function createLlmClient({
 
       const data = await response.json();
       requestSignal.throwIfAborted();
-      return parseReply(data);
+      return parseReply(data, maxMessageLength);
     } finally {
       clearTimeout(timer);
     }

@@ -1,6 +1,6 @@
 const HELP =
   ":help | :llm <on/off> | :memory <on/off> | :ask <question> | " +
-  ":status | :respawn | :quit | :forget";
+  ":status | :respawn | :quit | :forget | :parser <name|none|index>";
 
 function parseToggle(argument, command) {
   const value = argument.trim().toLowerCase();
@@ -11,6 +11,7 @@ function parseToggle(argument, command) {
 
 export function createCommandHandler({
   client,
+  parserManager,
   assistant,
   queue,
   llm,
@@ -22,6 +23,20 @@ export function createCommandHandler({
 }) {
   const commands = new Map([
     [":help", () => log(HELP)],
+    [
+      ":parser",
+      (argument) => {
+        const name = argument.trim().toLowerCase();
+        if (!name) return log(`current parser: ${parserManager.current()}`);
+        if (name == "index") {
+          return log(
+            `parser options: ${["none", ...parserManager.index()].join(", ")}`,
+          );
+        }
+        parserManager.set(name);
+        log(`set parser: ${parserManager.current()}`);
+      },
+    ],
     [
       ":status",
       () => log(JSON.stringify({ ...client.status(), ai: assistant.status() })),
