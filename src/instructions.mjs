@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 
 export { validReply } from "./messages.mjs";
 
-const allowed = String.raw`A-Za-z0-9 .,!?;:'"()\x2D`;
+const allowed =
+  String.raw`A-Za-z0-9 !"#$%&'()*+,\-./:;<=>?@\[\]\\^_` +
+  "`" +
+  String.raw`{|}~`;
 
 export function createReplyGrammar(maxMessageLength) {
   return `root ::= [A-Za-z0-9] [${allowed}]{1,${maxMessageLength - 1}}\n`;
