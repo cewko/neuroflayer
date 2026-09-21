@@ -26,7 +26,7 @@ export function createParserManager({ parsers }) {
       throw new Error("parseMessage must return { username, message } or null");
     }
 
-    return { username: parsed.username.trim(), message: parsed.message.trim() };
+    return { username: parsed.username, message: parsed.message };
   }
 
   return {
